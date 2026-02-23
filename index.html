@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SmartCurrent">
+  <meta name="theme-color" content="#0a0a0a">
+  <title>SmartCurrent Lite</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0a0a0c;
+      --surface: #111115;
+      --surface2: #18181f;
+      --border: #2a2a35;
+      --amber: #f59e0b;
+      --amber-dim: #92400e;
+      --amber-glow: rgba(245, 158, 11, 0.15);
+      --green: #10b981;
+      --red: #ef4444;
+      --text: #e8e8f0;
+      --text-dim: #6b6b80;
+      --text-muted: #3a3a48;
+      --accent: #f59e0b;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Noise texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.4;
+    }
+
+    /* App Shell */
+    #app { 
+      max-width: 430px; 
+      margin: 0 auto; 
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Header */
+    .header {
+      padding: calc(var(--safe-top) + 14px) 20px 14px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--amber);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo-icon svg { width: 20px; height: 20px; }
+
+    .logo-text {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 0.5px;
+      color: var(--text);
+    }
+
+    .logo-text span { color: var(--amber); }
+
+    .conn-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: 'Rajdhani', sans-serif;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid;
+    }
+
+    .conn-badge.disconnected {
+      background: rgba(239,68,68,0.1);
+      color: var(--red);
+      border-color: rgba(239,68,68,0.3);
+    }
+
+    .conn-badge.connected {
+      background: rgba(16,185,129,0.1);
+      color: var(--green);
+      border-color: rgba(16,185,129,0.3);
+    }
+
+    .conn-badge.demo {
+      background: rgba(245,158,11,0.1);
+      color: var(--amber);
+      border-color: rgba(245,158,11,0.3);
+    }
+
+    .conn-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .conn-badge.connected .conn-dot,
+    .conn-badge.demo .conn-dot {
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Screens */
+    .screen { display: none; flex: 1; flex-direction: column; animation: fadeIn 0.3s ease; }
+    .screen.active { display: flex; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Connect Screen */
+    #screen-connect {
+      justify-content: center;
+      align-items: center;
+      padding: 40px 24px;
+      gap: 32px;
+    }
+
+    .connect-hero {
+      text-align: center;
+    }
+
+    .connect-art {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 24px;
+      position: relative;
+    }
+
+    .connect-art svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .connect-hero h1 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .connect-hero p {
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .connect-options {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn-connect {
+      width: 100%;
+      padding: 16px 20px;
+      border-radius: 14px;
+      border: 1px solid;
+      background: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: all 0.2s;
+      text-align: left;
+    }
+
+    .btn-connect:active { transform: scale(0.98); }
+
+    .btn-connect.primary {
+      background: var(--amber);
+      border-color: var(--amber);
+      color: #0a0a0c;
+    }
+
+    .btn-connect.secondary {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    .btn-connect-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .btn-connect.primary .btn-connect-icon {
+      background: rgba(0,0,0,0.15);
+    }
+
+    .btn-connect.secondary .btn-connect-icon {
+      background: var(--surface2);
+    }
+
+    .btn-connect-text strong {
+      display: block;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      margin-bottom: 2px;
+    }
+
+    .btn-connect-text span {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    /* Main App Screen */
+    #screen-main {
+      flex-direction: column;
+      overflow-y: auto;
+      padding-bottom: calc(var(--safe-bottom) + 80px);
+    }
+
+    /* Driver Info Bar */
+    .driver-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .driver-select-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .driver-select-wrap label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-family: 'Rajdhani', sans-serif;
+      white-space: nowrap;
+    }
+
+    .driver-select {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    .driver-select:focus {
+      border-color: var(--amber);
+    }
+
+    /* Main content */
+    .main-content {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .card-body { padding: 18px; }
+
+    /* Current Display */
+    .current-display {
+      text-align: center;
+      padding: 24px 18px 18px;
+    }
+
+    .current-value-wrap {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+
+    .current-value {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 64px;
+      color: var(--amber);
+      line-height: 1;
+      text-shadow: 0 0 30px rgba(245,158,11,0.4);
+      transition: color 0.3s;
+    }
+
+    .current-unit {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    .current-range {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 0.5px;
+    }
+
+    /* Slider */
+    .slider-wrap {
+      padding: 0 18px 18px;
+    }
+
+    .slider-track {
+      position: relative;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      margin: 16px 0;
+    }
+
+    .slider-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      background: var(--amber);
+      border-radius: 3px;
+      transition: width 0.05s;
+      box-shadow: 0 0 12px rgba(245,158,11,0.5);
+    }
+
+    .slider-input {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0;
+      cursor: pointer;
+      margin: 0;
+      -webkit-appearance: none;
+    }
+
+    .slider-thumb {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      background: var(--amber);
+      border-radius: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 4px rgba(245,158,11,0.2), 0 2px 8px rgba(0,0,0,0.5);
+      pointer-events: none;
+      transition: transform 0.1s;
+    }
+
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    /* Step Buttons */
+    .step-btns {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 18px 18px;
+    }
+
+    .step-btn {
+      flex: 1;
+      height: 44px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .step-btn:active {
+      background: var(--amber-glow);
+      border-color: var(--amber);
+      color: var(--amber);
+      transform: scale(0.95);
+    }
+
+    .step-btn.big {
+      flex: 2;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .current-input-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 18px 18px;
+    }
+
+    .current-number-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--amber);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 20px;
+      text-align: center;
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    .current-number-input:focus {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px var(--amber-glow);
+    }
+
+    .input-label-small {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: 'Rajdhani', sans-serif;
+      letter-spacing: 0.5px;
+    }
+
+    /* Toggle Row */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+    }
+
+    .toggle-row + .toggle-row {
+      border-top: 1px solid var(--border);
+    }
+
+    .toggle-info strong {
+      display: block;
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .toggle-info span {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .toggle {
+      width: 51px;
+      height: 31px;
+      background: var(--surface2);
+      border-radius: 20px;
+      border: 2px solid var(--border);
+      position: relative;
+      cursor: pointer;
+      transition: all 0.25s;
+      flex-shrink: 0;
+    }
+
+    .toggle.on {
+      background: var(--amber);
+      border-color: var(--amber);
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 23px;
+      height: 23px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.25s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+
+    .toggle.on::after { transform: translateX(20px); }
+
+    /* Advanced Settings */
+    .adv-section {
+      border-top: 1px solid var(--border);
+    }
+
+    .adv-toggle-btn {
+      width: 100%;
+      padding: 14px 18px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .adv-toggle-btn .chevron {
+      transition: transform 0.25s;
+      font-size: 10px;
+    }
+
+    .adv-toggle-btn.open .chevron { transform: rotate(180deg); }
+
+    .adv-content {
+      display: none;
+      padding: 0 18px 18px;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .adv-content.open { display: flex; }
+
+    .adv-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .adv-row-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .adv-row-header label {
+      font-size: 13px;
+      color: var(--text-dim);
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+
+    .adv-value {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px;
+      color: var(--amber);
+    }
+
+    .adv-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: var(--surface2);
+      border-radius: 2px;
+      outline: none;
+    }
+
+    .adv-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      background: var(--amber);
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(245,158,11,0.4);
+    }
+
+    .adv-select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      -webkit-appearance: none;
+      width: 100%;
+    }
+
+    .adv-select:focus { border-color: var(--amber); }
+
+    /* Program Button */
+    .program-btn-wrap {
+      padding: 4px 20px 16px;
+    }
+
+    .program-btn {
+      width: 100%;
+      padding: 18px;
+      background: var(--amber);
+      color: #0a0a0c;
+      border: none;
+      border-radius: 14px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .program-btn:active {
+      transform: scale(0.98);
+      filter: brightness(0.9);
+    }
+
+    .program-btn.programming {
+      background: var(--surface2);
+      color: var(--amber);
+      border: 1px solid var(--amber);
+    }
+
+    .program-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transform: translateX(-100%);
+    }
+
+    .program-btn.success::after {
+      animation: shimmer 0.5s ease;
+    }
+
+    @keyframes shimmer {
+      to { transform: translateX(100%); }
+    }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 430px;
+      background: rgba(10,10,12,0.9);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 8px 0 calc(var(--safe-bottom) + 8px);
+      display: flex;
+      z-index: 90;
+    }
+
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px;
+      cursor: pointer;
+      color: var(--text-dim);
+      transition: color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .nav-item.active { color: var(--amber); }
+
+    .nav-item svg { width: 22px; height: 22px; }
+
+    .nav-item span {
+      font-size: 10px;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    /* Labels Screen */
+    #screen-labels {
+      overflow-y: auto;
+      padding-bottom: calc(var(--safe-bottom) + 80px);
+    }
+
+    .labels-content { padding: 20px; }
+
+    .label-preview {
+      background: white;
+      color: #111;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .label-preview::before {
+      content: 'PREVIEW';
+      position: absolute;
+      top: -8px;
+      left: 16px;
+      background: var(--amber);
+      color: #0a0a0c;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .label-brand {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .label-driver-name {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 10px;
+    }
+
+    .label-specs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .label-spec {
+      background: #f5f5f5;
+      padding: 8px 10px;
+      border-radius: 6px;
+    }
+
+    .label-spec-key {
+      font-size: 9px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 2px;
+    }
+
+    .label-spec-val {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 14px;
+      font-weight: bold;
+      color: #111;
+    }
+
+    .label-barcode {
+      margin-top: 12px;
+      text-align: center;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #999;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+    }
+
+    /* History Screen */
+    #screen-history {
+      overflow-y: auto;
+      padding-bottom: calc(var(--safe-bottom) + 80px);
+    }
+
+    .history-content { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .history-item:active { border-color: var(--amber); }
+
+    .history-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--amber-glow);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--amber);
+      flex-shrink: 0;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .history-info { flex: 1; }
+
+    .history-info strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 3px;
+    }
+
+    .history-info span {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .history-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: calc(var(--safe-bottom) + 90px);
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 20px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 200;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .toast.success { border-color: var(--green); color: var(--green); }
+    .toast.error { border-color: var(--red); color: var(--red); }
+    .toast.info { border-color: var(--amber); color: var(--amber); }
+
+    /* Progress bar for programming */
+    .progress-bar-wrap {
+      height: 3px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+      margin: 0 18px 16px;
+      display: none;
+    }
+
+    .progress-bar-wrap.show { display: block; }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--amber);
+      width: 0%;
+      transition: width 0.1s;
+      box-shadow: 0 0 8px rgba(245,158,11,0.6);
+    }
+
+    /* Status indicator */
+    .status-strip {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .status-strip::-webkit-scrollbar { display: none; }
+
+    .status-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .status-dot.green { background: var(--green); box-shadow: 0 0 4px var(--green); }
+    .status-dot.amber { background: var(--amber); box-shadow: 0 0 4px var(--amber); }
+    .status-dot.red { background: var(--red); }
+    .status-dot.grey { background: var(--text-muted); }
+
+    /* Section heading */
+    .section-label {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 0 8px;
+    }
+
+    /* Watt/voltage info row */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      padding: 0 18px 18px;
+    }
+
+    .info-cell {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+
+    .info-cell-val {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 16px;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .info-cell-key {
+      font-size: 9px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-family: 'Rajdhani', sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo-wrap">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="#0a0a0c">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+        </div>
+        <div class="logo-text">Smart<span>Current</span> <span style="font-size:12px;color:var(--text-dim);font-weight:400">Lite</span></div>
+      </div>
+      <div class="conn-badge disconnected" id="conn-badge" onclick="toggleConnection()">
+        <div class="conn-dot"></div>
+        <span id="conn-label">DISCONNECTED</span>
+      </div>
+    </div>
+
+    <!-- Connect Screen -->
+    <div class="screen active" id="screen-connect">
+      <div class="connect-hero">
+        <div class="connect-art">
+          <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="60" cy="60" r="55" stroke="#2a2a35" stroke-width="2"/>
+            <circle cx="60" cy="60" r="40" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.4"/>
+            <circle cx="60" cy="60" r="6" fill="#f59e0b"/>
+            <circle cx="60" cy="60" r="12" stroke="#f59e0b" stroke-width="1.5" opacity="0.6"/>
+            <!-- Lightning bolt -->
+            <path d="M65 30 L50 58 H62 L55 90 L80 54 H68 L75 30Z" fill="#f59e0b" opacity="0.9"/>
+            <!-- USB symbol side arms -->
+            <line x1="20" y1="60" x2="35" y2="60" stroke="#2a2a35" stroke-width="2"/>
+            <line x1="85" y1="60" x2="100" y2="60" stroke="#2a2a35" stroke-width="2"/>
+            <rect x="12" y="55" width="10" height="10" rx="2" fill="#18181f" stroke="#2a2a35" stroke-width="1.5"/>
+            <rect x="98" y="55" width="10" height="10" rx="2" fill="#18181f" stroke="#2a2a35" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <h1>LED Driver<br>Programmer</h1>
+        <p>Program Keystone SmartCurrent<br>drivers via USB or run in demo mode</p>
+      </div>
+
+      <div class="connect-options">
+        <button class="btn-connect primary" onclick="connectUSB()">
+          <div class="btn-connect-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2v4M8 6h8M7 6v3l-3 2v2h16v-2l-3-2V6M6 13v6a1 1 0 001 1h10a1 1 0 001-1v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="btn-connect-text">
+            <strong>Connect via USB</strong>
+            <span>Requires USB adapter & driver</span>
+          </div>
+        </button>
+
+        <button class="btn-connect secondary" onclick="startDemo()">
+          <div class="btn-connect-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M10 8l6 4-6 4V8z" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="btn-connect-text">
+            <strong>Demo Mode</strong>
+            <span>Try the app without hardware</span>
+          </div>
+        </button>
+
+        <button class="btn-connect secondary" onclick="showToast('Bluetooth support coming soon', 'info')">
+          <div class="btn-connect-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M6.5 6.5l11 11M17.5 6.5L12 12l5.5 5.5M12 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="btn-connect-text">
+            <strong>Bluetooth (Coming Soon)</strong>
+            <span>Wireless programming via BLE</span>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main App Screen -->
+    <div class="screen" id="screen-main">
+      <!-- Driver selector bar -->
+      <div class="driver-bar">
+        <div class="driver-select-wrap">
+          <label>DRIVER</label>
+          <select class="driver-select" id="driver-select" onchange="updateDriverRange()">
+            <option value="350,700,350">SC-USB-25-350-700 (350–700mA)</option>
+            <option value="350,1050,350">SC-USB-35-350-1050 (350–1050mA)</option>
+            <option value="500,1400,500">SC-USB-50-500-1400 (500–1400mA)</option>
+            <option value="700,1750,700">SC-USB-75-700-1750 (700–1750mA)</option>
+            <option value="500,2100,500">SC-USB-100-500-2100 (500–2100mA)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Status strip -->
+      <div class="status-strip">
+        <div class="status-chip"><div class="status-dot green"></div>Driver Ready</div>
+        <div class="status-chip"><div class="status-dot amber"></div><span id="status-dim">Dim-to-Off: OFF</span></div>
+        <div class="status-chip"><div class="status-dot grey"></div>FW v1.3.1</div>
+        <div class="status-chip"><div class="status-dot green"></div>USB OTG</div>
+      </div>
+
+      <div class="main-content">
+        <!-- Output Current Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">⚡ Output Current</div>
+            <div style="font-size:11px;color:var(--text-muted);font-family:'Share Tech Mono',monospace" id="current-pct">100%</div>
+          </div>
+
+          <!-- Big display -->
+          <div class="current-display">
+            <div class="current-value-wrap">
+              <div class="current-value" id="current-display">700</div>
+              <div class="current-unit">mA</div>
+            </div>
+            <div class="current-range" id="range-display">RANGE: 350 – 700 mA · STEP: 1 mA</div>
+          </div>
+
+          <!-- Slider -->
+          <div class="slider-wrap">
+            <div class="slider-track" id="slider-track">
+              <div class="slider-fill" id="slider-fill" style="width:100%"></div>
+              <div class="slider-thumb" id="slider-thumb" style="left:100%"></div>
+              <input type="range" class="slider-input" id="main-slider"
+                min="350" max="700" value="700" step="1"
+                oninput="onSliderInput(this.value)">
+            </div>
+            <div class="slider-labels">
+              <span id="slider-min-label">350 mA</span>
+              <span id="slider-max-label">700 mA</span>
+            </div>
+          </div>
+
+          <!-- Direct input -->
+          <div class="current-input-row">
+            <input type="number" class="current-number-input" id="current-input"
+              value="700" min="350" max="700"
+              oninput="onDirectInput(this.value)"
+              onblur="clampInput()">
+            <span class="input-label-small">mA<br>MANUAL</span>
+          </div>
+
+          <!-- Step buttons -->
+          <div class="step-btns">
+            <button class="step-btn" ontouchstart="" onclick="stepCurrent(-10)">−10</button>
+            <button class="step-btn" ontouchstart="" onclick="stepCurrent(-1)">−1</button>
+            <button class="step-btn big" onclick="resetToDefault()">↺ DEFAULT</button>
+            <button class="step-btn" ontouchstart="" onclick="stepCurrent(1)">+1</button>
+            <button class="step-btn" ontouchstart="" onclick="stepCurrent(10)">+10</button>
+          </div>
+
+          <!-- Calculated info -->
+          <div class="info-grid">
+            <div class="info-cell">
+              <div class="info-cell-val" id="calc-watts">—</div>
+              <div class="info-cell-key">WATTS</div>
+            </div>
+            <div class="info-cell">
+              <div class="info-cell-val" id="calc-vf">—</div>
+              <div class="info-cell-key">Vf EST</div>
+            </div>
+            <div class="info-cell">
+              <div class="info-cell-val" id="calc-eff">97%</div>
+              <div class="info-cell-key">EFF</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">⚙ Settings</div>
+          </div>
+
+          <!-- Dim to Off -->
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <strong>Dim-to-Off</strong>
+              <span>Enable dimming to 0% (fully off)</span>
+            </div>
+            <div class="toggle" id="toggle-dto" onclick="toggleDTO()"></div>
+          </div>
+
+          <!-- Soft Start -->
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <strong>Soft Start / Fade-In</strong>
+              <span>Gradual power-on ramp</span>
+            </div>
+            <div class="toggle on" id="toggle-soft" onclick="toggleSetting('toggle-soft', 'soft-start')"></div>
+          </div>
+
+          <!-- End of Life -->
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <strong>End-of-Life Warning</strong>
+              <span>Signal when LED nears EOL</span>
+            </div>
+            <div class="toggle" id="toggle-eol" onclick="toggleSetting('toggle-eol', 'eol-warning')"></div>
+          </div>
+
+          <!-- Advanced section -->
+          <div class="adv-section">
+            <button class="adv-toggle-btn" id="adv-btn" onclick="toggleAdv()">
+              <span>Advanced Parameters</span>
+              <span class="chevron">▼</span>
+            </button>
+
+            <div class="adv-content" id="adv-content">
+
+              <div class="adv-row">
+                <div class="adv-row-header">
+                  <label>Thermal Rollback (OTP)</label>
+                  <span class="adv-value" id="val-otp">75°C</span>
+                </div>
+                <input type="range" class="adv-slider" min="60" max="90" value="75" step="5"
+                  oninput="document.getElementById('val-otp').textContent = this.value + '°C'">
+              </div>
+
+              <div class="adv-row">
+                <div class="adv-row-header">
+                  <label>Luminous Decay Compensation</label>
+                  <span class="adv-value" id="val-ldc">L70</span>
+                </div>
+                <select class="adv-select" onchange="document.getElementById('val-ldc').textContent = this.value">
+                  <option>L70</option>
+                  <option>L80</option>
+                  <option>L90</option>
+                  <option>Disabled</option>
+                </select>
+              </div>
+
+              <div class="adv-row">
+                <div class="adv-row-header">
+                  <label>Fade-In Duration</label>
+                  <span class="adv-value" id="val-fade">0.5s</span>
+                </div>
+                <select class="adv-select" onchange="document.getElementById('val-fade').textContent = this.options[this.selectedIndex].text">
+                  <option value="0.5">0.5s — Fast</option>
+                  <option value="1">1.0s — Normal</option>
+                  <option value="2">2.0s — Slow</option>
+                  <option value="5">5.0s — Very Slow</option>
+                  <option value="0">Instant</option>
+                </select>
+              </div>
+
+              <div class="adv-row">
+                <div class="adv-row-header">
+                  <label>Min Dim Level</label>
+                  <span class="adv-value" id="val-mindim">1%</span>
+                </div>
+                <input type="range" class="adv-slider" min="0" max="10" value="1" step="1"
+                  oninput="document.getElementById('val-mindim').textContent = this.value + '%'">
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Program Button -->
+      <div class="program-btn-wrap">
+        <div class="progress-bar-wrap" id="prog-bar-wrap">
+          <div class="progress-bar" id="prog-bar"></div>
+        </div>
+        <button class="program-btn" id="program-btn" onclick="programDriver()">
+          ✓ WRITE TO DRIVER
+        </button>
+      </div>
+    </div>
+
+    <!-- Labels Screen -->
+    <div class="screen" id="screen-labels">
+      <div class="labels-content">
+        <div class="section-label" style="padding:0 0 12px">Generated Label</div>
+
+        <div class="label-preview" id="label-preview">
+          <div class="label-brand">KEYSTONE TECHNOLOGIES</div>
+          <div class="label-driver-name" id="lbl-model">SC-USB-25-350-700</div>
+          <div class="label-specs">
+            <div class="label-spec">
+              <div class="label-spec-key">Output Current</div>
+              <div class="label-spec-val" id="lbl-current">700 mA</div>
+            </div>
+            <div class="label-spec">
+              <div class="label-spec-key">Dim-to-Off</div>
+              <div class="label-spec-val" id="lbl-dto">DISABLED</div>
+            </div>
+            <div class="label-spec">
+              <div class="label-spec-key">Input Voltage</div>
+              <div class="label-spec-val">120–277V</div>
+            </div>
+            <div class="label-spec">
+              <div class="label-spec-key">Programmed</div>
+              <div class="label-spec-val" id="lbl-date">—</div>
+            </div>
+          </div>
+          <div class="label-barcode">
+            |||  ||| |  | ||  |||  |  ||| | ||<br>
+            <span id="lbl-barcode">KST-SC-700-OFF</span>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;">
+          <button class="btn-connect secondary" style="flex:1;border-radius:12px;" onclick="printLabel()">
+            <div class="btn-connect-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <div class="btn-connect-text"><strong>Print Label</strong><span>Via AirPrint</span></div>
+          </button>
+          <button class="btn-connect secondary" style="flex:1;border-radius:12px;" onclick="shareLabel()">
+            <div class="btn-connect-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98M21 5a3 3 0 11-6 0 3 3 0 016 0zM9 12a3 3 0 11-6 0 3 3 0 016 0zM21 19a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <div class="btn-connect-text"><strong>Share</strong><span>Export / Share Sheet</span></div>
+          </button>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-header"><div class="card-title">🏷 Label Templates</div></div>
+          <div class="toggle-row" style="cursor:pointer" onclick="showToast('Horizontal label selected','info')">
+            <div class="toggle-info"><strong>Horizontal (2" × 1")</strong><span>Standard driver label format</span></div>
+            <div style="color:var(--amber);font-size:18px">●</div>
+          </div>
+          <div class="toggle-row" style="cursor:pointer" onclick="showToast('Vertical label selected','info')">
+            <div class="toggle-info"><strong>Vertical (1" × 2")</strong><span>Narrow profile format</span></div>
+            <div style="color:var(--text-muted);font-size:18px">○</div>
+          </div>
+          <div class="toggle-row" style="cursor:pointer" onclick="showToast('QR Code label selected','info')">
+            <div class="toggle-info"><strong>QR Code Label</strong><span>Scan to load settings</span></div>
+            <div style="color:var(--text-muted);font-size:18px">○</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Screen -->
+    <div class="screen" id="screen-history">
+      <div class="history-content">
+        <div class="section-label">Programming History</div>
+        <div id="history-list">
+          <div style="text-align:center;color:var(--text-muted);padding:60px 20px;font-size:14px">
+            No programming history yet.<br>
+            <span style="font-size:12px">Connect a driver and write settings to see history.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Nav (hidden on connect screen) -->
+    <div class="bottom-nav" id="bottom-nav" style="display:none">
+      <div class="nav-item active" id="nav-main" onclick="switchTab('main')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>PROGRAM</span>
+      </div>
+      <div class="nav-item" id="nav-labels" onclick="switchTab('labels')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 7h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>LABELS</span>
+      </div>
+      <div class="nav-item" id="nav-history" onclick="switchTab('history')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 8v4l3 3M3.05 11a9 9 0 1018 0 9 9 0 00-18 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>HISTORY</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ─── State ───────────────────────────────────────────────────────────────
+    let state = {
+      connected: false,
+      mode: 'disconnected', // 'disconnected' | 'demo' | 'usb'
+      current: 700,
+      min: 350,
+      max: 700,
+      default: 700,
+      dto: false,
+      softStart: true,
+      eol: false,
+      history: []
+    };
+
+    // ─── Connection ──────────────────────────────────────────────────────────
+    function connectUSB() {
+      // Try Web Serial API (Chrome on desktop/iPad)
+      if ('serial' in navigator) {
+        navigator.serial.requestPort()
+          .then(port => {
+            state.connected = true;
+            state.mode = 'usb';
+            setConnected('USB');
+          })
+          .catch(() => {
+            showToast('USB connection cancelled', 'error');
+          });
+      } else {
+        showToast('USB requires Chrome on iPad/desktop', 'error');
+        setTimeout(() => {
+          showToast('Launching demo mode instead…', 'info');
+          setTimeout(startDemo, 800);
+        }, 1500);
+      }
+    }
+
+    function startDemo() {
+      state.connected = true;
+      state.mode = 'demo';
+      setConnected('DEMO');
+    }
+
+    function setConnected(modeLabel) {
+      const badge = document.getElementById('conn-badge');
+      const label = document.getElementById('conn-label');
+      badge.className = 'conn-badge ' + (modeLabel === 'USB' ? 'connected' : 'demo');
+      label.textContent = modeLabel;
+
+      document.getElementById('screen-connect').classList.remove('active');
+      document.getElementById('screen-main').classList.add('active');
+      document.getElementById('bottom-nav').style.display = 'flex';
+
+      showToast(modeLabel === 'USB' ? '✓ Driver connected' : '▶ Demo mode active', 'success');
+    }
+
+    function toggleConnection() {
+      if (state.connected) {
+        state.connected = false;
+        state.mode = 'disconnected';
+        const badge = document.getElementById('conn-badge');
+        badge.className = 'conn-badge disconnected';
+        document.getElementById('conn-label').textContent = 'DISCONNECTED';
+        document.getElementById('screen-main').classList.remove('active');
+        document.getElementById('screen-labels').classList.remove('active');
+        document.getElementById('screen-history').classList.remove('active');
+        document.getElementById('screen-connect').classList.add('active');
+        document.getElementById('bottom-nav').style.display = 'none';
+        switchTab('main', true);
+      }
+    }
+
+    // ─── Slider / Current ────────────────────────────────────────────────────
+    function updateSliderUI(val) {
+      const pct = ((val - state.min) / (state.max - state.min)) * 100;
+      document.getElementById('slider-fill').style.width = pct + '%';
+      document.getElementById('slider-thumb').style.left = pct + '%';
+      document.getElementById('current-display').textContent = val;
+      document.getElementById('current-input').value = val;
+      document.getElementById('main-slider').value = val;
+      document.getElementById('current-pct').textContent = Math.round(pct) + '%';
+      updateCalcInfo(val);
+      updateLabelPreview();
+    }
+
+    function onSliderInput(val) {
+      state.current = parseInt(val);
+      updateSliderUI(state.current);
+    }
+
+    function onDirectInput(val) {
+      const n = parseInt(val);
+      if (!isNaN(n)) {
+        state.current = Math.min(state.max, Math.max(state.min, n));
+        updateSliderUI(state.current);
+      }
+    }
+
+    function clampInput() {
+      document.getElementById('current-input').value = state.current;
+    }
+
+    function stepCurrent(delta) {
+      state.current = Math.min(state.max, Math.max(state.min, state.current + delta));
+      updateSliderUI(state.current);
+    }
+
+    function resetToDefault() {
+      state.current = state.default;
+      updateSliderUI(state.current);
+      showToast('Reset to default', 'info');
+    }
+
+    function updateCalcInfo(ma) {
+      // Rough estimations for display
+      const vf = (ma / 1000 * 50).toFixed(1); // assume ~50V typical
+      const watts = (ma / 1000 * 36).toFixed(1); // rough
+      document.getElementById('calc-watts').textContent = watts + 'W';
+      document.getElementById('calc-vf').textContent = '~' + vf + 'V';
+    }
+
+    function updateDriverRange() {
+      const sel = document.getElementById('driver-select');
+      const parts = sel.value.split(',');
+      state.min = parseInt(parts[0]);
+      state.max = parseInt(parts[1]);
+      state.default = parseInt(parts[2]);
+      state.current = state.default;
+
+      const slider = document.getElementById('main-slider');
+      slider.min = state.min;
+      slider.max = state.max;
+
+      document.getElementById('range-display').textContent =
+        `RANGE: ${state.min} – ${state.max} mA · STEP: 1 mA`;
+      document.getElementById('slider-min-label').textContent = state.min + ' mA';
+      document.getElementById('slider-max-label').textContent = state.max + ' mA';
+      document.getElementById('current-input').min = state.min;
+      document.getElementById('current-input').max = state.max;
+
+      updateSliderUI(state.current);
+    }
+
+    // ─── Toggles ─────────────────────────────────────────────────────────────
+    function toggleDTO() {
+      state.dto = !state.dto;
+      const el = document.getElementById('toggle-dto');
+      el.classList.toggle('on', state.dto);
+      document.getElementById('status-dim').textContent = 'Dim-to-Off: ' + (state.dto ? 'ON' : 'OFF');
+      updateLabelPreview();
+    }
+
+    function toggleSetting(id, name) {
+      const el = document.getElementById(id);
+      el.classList.toggle('on');
+      showToast(name.replace('-', ' ') + ' ' + (el.classList.contains('on') ? 'enabled' : 'disabled'), 'info');
+    }
+
+    function toggleAdv() {
+      const btn = document.getElementById('adv-btn');
+      const content = document.getElementById('adv-content');
+      btn.classList.toggle('open');
+      content.classList.toggle('open');
+    }
+
+    // ─── Program Driver ───────────────────────────────────────────────────────
+    function programDriver() {
+      const btn = document.getElementById('program-btn');
+      const barWrap = document.getElementById('prog-bar-wrap');
+      const bar = document.getElementById('prog-bar');
+
+      btn.disabled = true;
+      btn.textContent = '⟳ WRITING…';
+      btn.classList.add('programming');
+      barWrap.classList.add('show');
+      bar.style.width = '0%';
+
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += Math.random() * 15 + 5;
+        if (progress >= 100) {
+          progress = 100;
+          clearInterval(interval);
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.textContent = '✓ WRITE TO DRIVER';
+            btn.classList.remove('programming');
+            btn.classList.add('success');
+            barWrap.classList.remove('show');
+            setTimeout(() => btn.classList.remove('success'), 500);
+            showToast('✓ Driver programmed successfully', 'success');
+            addHistory();
+          }, 300);
+        }
+        bar.style.width = progress + '%';
+      }, 80);
+    }
+
+    // ─── History ──────────────────────────────────────────────────────────────
+    function addHistory() {
+      const sel = document.getElementById('driver-select');
+      const model = sel.options[sel.selectedIndex].text.split(' ')[0];
+      const now = new Date();
+      const time = now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+      state.history.unshift({ model, current: state.current, dto: state.dto, time });
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const list = document.getElementById('history-list');
+      if (state.history.length === 0) return;
+      list.innerHTML = state.history.map(h => `
+        <div class="history-item" onclick="loadHistory(${h.current},${h.dto})">
+          <div class="history-icon">${h.current}</div>
+          <div class="history-info">
+            <strong>${h.model}</strong>
+            <span>${h.current} mA · Dim-to-Off: ${h.dto ? 'ON' : 'OFF'}</span>
+          </div>
+          <div class="history-time">${h.time}</div>
+        </div>
+      `).join('');
+    }
+
+    function loadHistory(current, dto) {
+      state.current = current;
+      if (state.dto !== dto) toggleDTO();
+      updateSliderUI(current);
+      switchTab('main');
+      showToast('Settings loaded from history', 'info');
+    }
+
+    // ─── Label Preview ────────────────────────────────────────────────────────
+    function updateLabelPreview() {
+      const sel = document.getElementById('driver-select');
+      const model = sel ? sel.options[sel.selectedIndex].text.split(' ')[0] : '—';
+      const now = new Date();
+      const dateStr = now.toLocaleDateString([], { month:'2-digit', day:'2-digit', year:'2-digit' });
+
+      document.getElementById('lbl-model').textContent = model;
+      document.getElementById('lbl-current').textContent = state.current + ' mA';
+      document.getElementById('lbl-dto').textContent = state.dto ? 'ENABLED' : 'DISABLED';
+      document.getElementById('lbl-date').textContent = dateStr;
+      document.getElementById('lbl-barcode').textContent =
+        `KST-SC-${state.current}-${state.dto ? 'DTO' : 'OFF'}`;
+    }
+
+    function printLabel() {
+      updateLabelPreview();
+      window.print();
+    }
+
+    function shareLabel() {
+      const text = `SmartCurrent Driver Config\nModel: ${document.getElementById('lbl-model').textContent}\nOutput: ${state.current} mA\nDim-to-Off: ${state.dto ? 'Enabled' : 'Disabled'}`;
+      if (navigator.share) {
+        navigator.share({ title: 'SmartCurrent Label', text });
+      } else {
+        navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard', 'success'));
+      }
+    }
+
+    // ─── Tab Navigation ───────────────────────────────────────────────────────
+    function switchTab(tab, force) {
+      ['main','labels','history'].forEach(t => {
+        document.getElementById('screen-' + t).classList.remove('active');
+        document.getElementById('nav-' + t)?.classList.remove('active');
+      });
+      if (!force) {
+        document.getElementById('screen-' + tab).classList.add('active');
+        document.getElementById('nav-' + tab)?.classList.add('active');
+      }
+      if (tab === 'labels') updateLabelPreview();
+      if (tab === 'history') renderHistory();
+    }
+
+    // ─── Toast ────────────────────────────────────────────────────────────────
+    let toastTimeout;
+    function showToast(msg, type = 'info') {
+      const t = document.getElementById('toast');
+      clearTimeout(toastTimeout);
+      t.textContent = msg;
+      t.className = 'toast ' + type;
+      requestAnimationFrame(() => {
+        t.classList.add('show');
+        toastTimeout = setTimeout(() => t.classList.remove('show'), 2500);
+      });
+    }
+
+    // ─── Init ────────────────────────────────────────────────────────────────
+    updateSliderUI(state.current);
+    updateCalcInfo(state.current);
+  </script>
+</body>
+</html>
