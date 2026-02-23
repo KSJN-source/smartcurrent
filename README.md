@@ -1,0 +1,1 @@
+Smartcurrent lite
