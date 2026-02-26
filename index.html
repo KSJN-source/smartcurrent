@@ -692,8 +692,8 @@ async function connectDevice() {
     // Start reading
     startReading();
 
-    // Auto-read driver info
-    setTimeout(readDriverInfo, 500);
+    // Auto-read driver info after 1s
+    setTimeout(readDriverInfo, 1000);
 
   } catch (err) {
     setStatus('offline');
@@ -719,6 +719,16 @@ async function disconnectDevice() {
 async function startReading() {
   if (!port || !port.readable) return;
   reader = port.readable.getReader();
+  let silenceTimer = null;
+
+  const flushBuffer = () => {
+    if (rxBuffer.length > 0) {
+      const pkt = rxBuffer.trim();
+      rxBuffer = '';
+      if (pkt.length > 0) processRxPacket(pkt);
+    }
+  };
+
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -726,13 +736,18 @@ async function startReading() {
       if (value) {
         const text = new TextDecoder().decode(value);
         rxBuffer += text;
-        // Process complete packets ending with CR
-        let cr = rxBuffer.indexOf('\r');
+        if (silenceTimer) clearTimeout(silenceTimer);
+        // Try CR/LF terminated packets
+        let cr = rxBuffer.search(/[\r\n]/);
         while (cr !== -1) {
-          const pkt = rxBuffer.substring(0, cr);
+          const pkt = rxBuffer.substring(0, cr).trim();
           rxBuffer = rxBuffer.substring(cr + 1);
           if (pkt.length > 0) processRxPacket(pkt);
-          cr = rxBuffer.indexOf('\r');
+          cr = rxBuffer.search(/[\r\n]/);
+        }
+        // Flush after 200ms silence (handles drivers without CR)
+        if (rxBuffer.length > 0) {
+          silenceTimer = setTimeout(flushBuffer, 200);
         }
       }
     }
@@ -747,7 +762,9 @@ let pendingResolve = null;
 let rxTimeout = null;
 
 function processRxPacket(raw) {
-  logMsg('rx', raw);
+  // Show raw bytes as hex for debugging
+  const hexBytes = Array.from(raw).map(c => c.charCodeAt(0).toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  logMsg('rx', `${raw}  [${hexBytes}]`);
   if (pendingResolve) {
     const r = pendingResolve;
     pendingResolve = null;
@@ -756,7 +773,7 @@ function processRxPacket(raw) {
   }
 }
 
-async function sendPacket(pkt, timeoutMs = 2000) {
+async function sendPacket(pkt, timeoutMs = 3000) {
   if (!isConnected || !writer) {
     logMsg('err', 'Not connected');
     return null;
@@ -789,57 +806,99 @@ async function sendPacket(pkt, timeoutMs = 2000) {
 
 // querySysInfoDriver: query((byte)67, 256, 14, bArr2)
 // = txPackRead(67, 256, 14)
+// ============================================================
+// RESPONSE PARSER — based on actual hardware observations
+// Observed: RC00057B1B
+//   [R/W=R][ch=C][status=00][data_hex=057B][cs=1B]
+//   0x057B = 1403 mA ✓
+// Observed sysinfo: RC0001F4023005780165030840004000XX
+//   [RC][00][01F4=500][0230=560][0578=1400][0165=357][0308][4000][4000][cs]
+//   POUT=0x01F4=500 (×0.1 = 50.0W), VOUT=0x0230=560 (×0.1 = 56.0V), IOUT=0x0578=1400mA
+// ============================================================
+
+function parseRxDataHex(raw) {
+  // raw = full string without CR, e.g. "RC00057B1B"
+  if (!raw || raw.length < 4) return null;
+
+  // Log the attempt
+  logMsg('info', `Parsing: "${raw}" (len=${raw.length})`);
+
+  // Format: [R/W][ch][status 2][data ...][cs 2]
+  // Try standard format first
+  if (raw.length >= 6) {
+    const status = raw.substring(2, 4);
+    if (status === '00') {
+      // data between bytes 4 and len-2
+      const data = raw.substring(4, raw.length - 2);
+      logMsg('info', `  → status=OK, data="${data}"`);
+      return data;
+    } else {
+      // Maybe no status byte — try raw.substring(2, raw.length-2)
+      logMsg('info', `  → status="${status}" (not 00), trying alt parse`);
+      const data = raw.substring(2, raw.length - 2);
+      logMsg('info', `  → alt data="${data}"`);
+      return data;
+    }
+  }
+  return raw.substring(2);
+}
+
 async function readDriverInfo() {
-  logMsg('info', 'Reading driver system info...');
+  logMsg('info', 'Reading driver system info (0x0100, 14 bytes)...');
   const pkt = buildReadPacket(PROTO.CHANNEL_DRIVER, PROTO.PRODUCT_INFO, PROTO.SYS_INFO_SIZE);
   updateHexDebug(pkt, 'READ SYS INFO');
   const resp = await sendPacket(pkt);
 
   if (resp) {
-    parseDriverInfo(resp);
+    const data = parseRxDataHex(resp);
+    if (data && data.length >= 12) {
+      // 7 × 16-bit registers starting at 0x0100
+      // [0] POUT_RATED_MAX 0x0100
+      // [1] VOUT_RATED_MAX 0x0102
+      // [2] IOUT_RATED_MAX 0x0104
+      // [3] IOUT_UNDER_VOUT 0x0106
+      const poutRaw = parseInt(data.substring(0, 4), 16);
+      const voutRaw = parseInt(data.substring(4, 8), 16);
+      const ioutRaw = parseInt(data.substring(8, 12), 16);
+
+      // Units: POUT in 0.1W, VOUT in 0.1V, IOUT in mA
+      if (!isNaN(poutRaw) && poutRaw > 0) {
+        const pout = (poutRaw / 10).toFixed(1);
+        document.getElementById('infoPout').textContent = pout + ' W';
+        logMsg('info', `POUT_MAX: ${pout}W (raw: 0x${poutRaw.toString(16).toUpperCase()})`);
+      }
+      if (!isNaN(voutRaw) && voutRaw > 0) {
+        const vout = (voutRaw / 10).toFixed(1);
+        document.getElementById('infoVout').textContent = vout + ' V';
+        logMsg('info', `VOUT_MAX: ${vout}V (raw: 0x${voutRaw.toString(16).toUpperCase()})`);
+      }
+      if (!isNaN(ioutRaw) && ioutRaw > 0) {
+        document.getElementById('infoIout').textContent = ioutRaw + ' mA';
+        logMsg('info', `IOUT_MAX (sysinfo): ${ioutRaw}mA`);
+      }
+    }
   }
 
-  // Also read IOUT separately
+  // Read current IOUT setpoint separately (with delay)
+  await new Promise(r => setTimeout(r, 500));
   await readCurrentValue();
 }
 
-function parseDriverInfo(raw) {
-  // Response format: [R/W][ch][ADDR4][LEN2][DATA_HEX][CS2]
-  // Data starts at index 8, each byte = 2 hex chars
-  try {
-    if (raw.length < 10) return;
-    const startIdx = 8; // skip R/W + ch + AAAA + LL
-    const dataHex = raw.substring(startIdx, raw.length - 2); // exclude CS
-
-    // Parse VOUT (bytes 0-1 = 0x0100), POUT (0x0100)
-    if (dataHex.length >= 28) {
-      const pout = parseInt(dataHex.substring(0, 4), 16);
-      const vout = parseInt(dataHex.substring(4, 8), 16);
-      const iout = parseInt(dataHex.substring(8, 12), 16);
-
-      if (!isNaN(pout) && pout > 0) document.getElementById('infoPout').textContent = pout + ' W';
-      if (!isNaN(vout) && vout > 0) document.getElementById('infoVout').textContent = vout + ' V';
-      if (!isNaN(iout) && iout > 0) {
-        document.getElementById('infoIout').textContent = iout + ' mA';
-        document.getElementById('maxBarFill').setAttribute('data-max', iout);
-      }
-    }
-  } catch(e) {}
-}
-
 async function readCurrentValue() {
-  logMsg('info', 'Reading IOUT_RATED_MAX (0x0104)...');
+  logMsg('info', 'Reading IOUT_RATED_MAX (0x0104, 2 bytes)...');
   const pkt = buildReadPacket(PROTO.CHANNEL_DRIVER, PROTO.IOUT_RATED_MAX, 2);
   updateHexDebug(pkt, 'READ IOUT');
   const resp = await sendPacket(pkt);
 
-  if (resp && resp.length >= 12) {
-    // Data at index 8, 4 hex chars = 2 bytes
-    const dataHex = resp.substring(8, 12);
-    const val = parseInt(dataHex, 16);
-    if (!isNaN(val) && val > 0 && val <= 2000) {
-      setCurrentValue(val);
-      logMsg('info', `IOUT read: ${val} mA`);
+  if (resp) {
+    const data = parseRxDataHex(resp);
+    if (data && data.length >= 4) {
+      const val = parseInt(data.substring(0, 4), 16);
+      if (!isNaN(val) && val > 0 && val <= 9999) {
+        setCurrentValue(val);
+        document.getElementById('infoIout').textContent = val + ' mA';
+        logMsg('info', `✓ IOUT = ${val} mA (0x${val.toString(16).toUpperCase().padStart(4,'0')})`);
+      }
     }
   }
 }
@@ -865,9 +924,9 @@ async function writeCurrent() {
   const resp = await sendPacket(pkt);
 
   if (resp !== null) {
-    logMsg('info', `Write successful: ${val} mA`);
-    // Verify by reading back
-    setTimeout(readCurrentValue, 300);
+    const wdata = parseRxDataHex(resp);
+    logMsg('info', `✓ WRITE ${wdata !== null ? 'confirmed' : 'sent'}: ${val} mA`);
+    setTimeout(readCurrentValue, 500);
   }
 }
 
